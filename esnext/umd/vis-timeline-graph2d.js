@@ -5,7 +5,7 @@
  * Create a fully customizable, interactive timeline with items and ranges.
  *
  * @version 0.0.2
- * @date    2026-08-19T12:17:47.008Z
+ * @date    2026-10-13T13:02:37.127Z
  *
  * @copyright (c) 2011-2017 Almende B.V, http://almende.com
  * @copyright (c) 2017-2019 visjs contributors, https://github.com/visjs
@@ -1245,7 +1245,9 @@ class Group {
             itemSet._labelResizeRedrawScheduled = true;
             requestAnimationFrame(() => {
               itemSet._labelResizeRedrawScheduled = false;
-              itemSet.body.emitter.emit("_change");
+              // ItemSet.destroy clears body: the timeline went away before
+              // the frame, which happens when a page unmounts it mid-resize.
+              if (itemSet.body) itemSet.body.emitter.emit("_change");
             });
           }
         }
@@ -11284,6 +11286,7 @@ class ItemSet extends Component {
             scheduled = true;
             requestAnimationFrame(() => {
               scheduled = false;
+              if (!this.body) return; // destroyed before the frame
               // refresh the cached panel viewport used by the standby
               // virtualization band (Group._computeVerticalBand) - reading
               // it during the redraw itself would force a layout per frame
@@ -11665,7 +11668,11 @@ class ItemSet extends Component {
       const token = (this._fastPanToken = (this._fastPanToken || 0) + 1);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (this._fastPanToken === token && this._anyDeferredRestacks) {
+          if (
+            this.body && // not destroyed before the frame
+            this._fastPanToken === token &&
+            this._anyDeferredRestacks
+          ) {
             this.body.emitter.emit("_change");
           }
         });

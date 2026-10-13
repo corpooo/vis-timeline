@@ -109,6 +109,41 @@ describe("Timeline ItemSet", () => {
     assert.equal(itemset.getItems(), null);
   });
 
+  it("skips a label resize redraw when it is destroyed before the frame", () => {
+    const observers = [];
+    const frames = [];
+    const { ResizeObserver, requestAnimationFrame } = globalThis;
+    globalThis.ResizeObserver = class {
+      constructor(callback) {
+        observers.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    };
+    globalThis.requestAnimationFrame = (callback) => frames.push(callback);
+    try {
+      const body = getBasicBody();
+      body.range = internals.testrange;
+      const emitted = [];
+      body.emitter.emit = (event) => emitted.push(event);
+      body.emitter.off = () => {};
+      const itemset = new ItemSet(body, {});
+      itemset.setGroups(new DataSet([{ id: 1, content: "Group 1" }]));
+      itemset.groups[1].props.label.width = 10; // the label was measured wider
+      observers.forEach((callback) => callback());
+
+      itemset.destroy();
+      const emittedBeforeFrame = emitted.length;
+      frames.forEach((callback) => callback());
+
+      assert.equal(frames.length, 1);
+      assert.equal(emitted.length, emittedBeforeFrame);
+    } finally {
+      globalThis.ResizeObserver = ResizeObserver;
+      globalThis.requestAnimationFrame = requestAnimationFrame;
+    }
+  });
+
   it("should store items correctly", () => {
     const body = getBasicBody();
     body.range = internals.testrange;
